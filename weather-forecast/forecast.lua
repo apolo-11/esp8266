@@ -9,49 +9,32 @@ function Refresh()
     if data == nil then
       return -1
     end
-	
-    --disp:setFontRefHeightExtendedText()
-    disp:setDefaultForegroundColor()
-    disp:setFont(u8g.font_6x10)
-    disp:setFontPosTop()
-	
-	local pocitadlo = 0
 
     if screen == 0 then
+      --disp:setFontPosTop()
       disp:firstPage()
       repeat
         disp:drawStr(65,0, data["day"])
         disp:drawStr(65,10, data["onPlace"])
         disp:drawStr(65,44, data["time"])
         disp:drawStr(65,54, data["date"])
-        disp:drawBitmap( 0, 0, 8, 64, icon )
-		pocitadlo = pocitadlo + 1
+        disp:drawBitmap(0, 0, 8, 64, icon)
       until disp:nextPage() == false
     elseif screen == 1 then
       ShowTextualForecast()
       screen = -1
     end
-    
-	print("Pocitadlo 1: "..pocitadlo)
+
     screen = screen + 1
 end
 
 
 function ShowTextualForecast()
-	--disp:setFontRefHeightExtendedText()
-	--disp:setDefaultForegroundColor()
-	--disp:setFont(u8g.font_6x10)
-	disp:setFontPosTop()
-	
-	local pocitadlo = 0
-	
+	--disp:setFontPosTop()
 	disp:firstPage()
 	repeat
 		DrawTextualForecats()
-		pocitadlo = pocitadlo + 1
-    until disp:nextPage() == false	
-	
-	print("Pocitadlo 2: "..pocitadlo)
+  until disp:nextPage() == false	
 end
 
 
@@ -86,19 +69,28 @@ function DownloadForecast()
 	conn:on("receive",function(conn,pl)
 		print("Data received")
 
-		local i
-		i = pl:find("{")
-		if i == nil then
+		local first
+    local last
+		first = pl:find("{")
+    last = pl:find("}", first)
+		if first == nil then
 		   return -1
 		end
-		local local_data = cjson.decode(pl:sub(i))
+    
+    pl = pl:sub(first, last)
+    first = nil
+    last = nil
+    --print(pl)
+  
+		local local_data = cjson.decode(pl)
+    pl = nil
 		print("Json decode done!")
-		
+
 		conn:close()
+    collectgarbage()
 		
 		icon = dofile(local_data["icon"]..".lc")
 		data = local_data
-		collectgarbage()
 	end)
 
 	conn:on("disconnection",function(conn)
@@ -114,7 +106,7 @@ function DownloadForecast()
 
 		conn:send("GET http://teplomer.apolo-11.cz/rest/predpoved/plzen HTTP/1.1\r\n"..
 		 "Host: teplomer.apolo-11.cz\r\n"..
-		 "Connection: keep-alive\r\n\r\n")
+		 "Connection: close\r\n\r\n")
 	end)
 	
 	conn:connect(80,"teplomer.apolo-11.cz")  
