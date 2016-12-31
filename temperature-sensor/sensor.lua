@@ -1,10 +1,7 @@
-require('ds1820')
+require("ds1820")
 
--- gpio0 - 3 je po startu na 0 a asi dela problemy na ESP-01
--- gpio2 - 4 dela problemy na ESP-02
-gpio0 = 4
-sendPeriod=5 * 60 * 1000
-hostName="teplomer.apolo-11.cz"
+-- read the configuration
+dofile("config.lc")
 
 function sendData()
   tmr.wdclr()
@@ -49,7 +46,7 @@ function sendData()
 						  tmr.wdclr()
 						  print("Connected")
 						  conn:send("GET /rest/measurement/"..sensorID.."?temperature="..temp.." HTTP/1.1\r\n"
-						  .."Host: "..hostName.."\r\n"
+						  .."Host: "..HOST_NAME.."\r\n"
 						  .."Accept: */*\r\n"
 						  .."User-Agent: Mozilla/4.0 (compatible; Windows NT 5.1)\r\n"
 						  .."\r\n")
@@ -73,11 +70,11 @@ function sendDataForAll()
 end
 
 function getDns()
-  print("Getting IP for "..hostName)
+  print("Getting IP for "..HOST_NAME)
   tmr.wdclr()
   local sk = net.createConnection(net.TCP, 0)
-  sk:dns(hostName,function(conn,ip)
-						print(hostName.." - "..ip)
+  sk:dns(HOST_NAME,function(conn,ip)
+						print(HOST_NAME.." - "..ip)
 						remoteIP=ip
                   end)
   sk = nil
@@ -86,10 +83,10 @@ end
 connectionClosed = true
 remoteIP = nil
 getDns()
-ds1820.setup(gpio0)
+ds1820.setup(GPIO_DS1820)
 sensors=ds1820.addrs()
 tmpSensors={}
 
 tmr.alarm(2, 3600*1000, 1, function() getDns() end )
 tmr.alarm(1, 1000, 0, function() sendDataForAll() end )
-tmr.alarm(0, sendPeriod, 1, function() sendDataForAll() end )
+tmr.alarm(0, SEND_PERIOD, 1, function() sendDataForAll() end )
