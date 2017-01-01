@@ -15,8 +15,6 @@ _G[modname] = M
 --------------------------------------------------------------------------------
 -- DS18B20 dq pin
 local pin = nil
--- DS18B20 default pin
-local defaultPin = 9
 --------------------------------------------------------------------------------
 -- Local used modules
 --------------------------------------------------------------------------------
@@ -36,12 +34,9 @@ setfenv(1,M)
 C = 0
 F = 1
 K = 2
+
 function setup(dq)
   pin = dq
-  if(pin == nil) then
-    pin = defaultPin
-  end
-  ow.setup(pin)
 end
 
 function addrs()
@@ -49,7 +44,7 @@ function addrs()
   local addrs = {}
   local addr = nil
   
-  setup(pin)
+  ow.setup(pin)
   ow.reset_search(pin)
   
   repeat
@@ -75,22 +70,8 @@ function addrs()
   return addrs
 end
 
-function readNumber(addr, unit)
-  setup(pin)
-  flag = false
-  if(addr == nil) then
-    ow.reset_search(pin)
-    count = 0
-    repeat
-      count = count + 1
-      addr = ow.search(pin)
-      tmr.wdclr()
-    until((addr ~= nil) or (count > 100))
-    ow.reset_search(pin)
-  end
-  if(addr == nil) then
-    return "NA"
-  end
+function read(addr, unit)
+  ow.setup(pin)
   crc = ow.crc8(string.sub(addr,1,7))
   if (crc == addr:byte(8)) then
     if ((addr:byte(1) == 0x10) or (addr:byte(1) == 0x28)) then
@@ -125,33 +106,25 @@ function readNumber(addr, unit)
         else
           return nil
         end
-        t1 = t / 10000
-	    t2 = (t >= 0 and t % 10000) or (10000 - t % 10000)
-        temperature = "" .. t1 .. "." .. string.format("%04d", t2)
-		if (temperature == "85.0000") then
-    	  return "NA"
-	    else
-	      return temperature
-	    end
+
+        if (t == 850000) then
+    	    return "NA"
+	      else
+          t1 = t / 10000
+          t2 = (t >= 0 and t % 10000) or (10000 - t % 10000)
+          temperature = "" .. t1 .. "." .. string.format("%04d", t2)
+	        return temperature
+	      end
       end
       tmr.wdclr()
     else
-     --print("Device family is not recognized.")
+      print("Device family is not recognized.")
     end
   else
    --print("CRC is not valid!")
   end
   
   return "NA"
-end
-
-function read(addr, unit)
-  t = readNumber(addr, unit)
-  if (t == nil) then
-    return nil
-  else
-    return t
-  end
 end
 
 -- Return module table
