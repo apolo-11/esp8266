@@ -11,7 +11,6 @@ function Refresh()
     end
 
     if screen == 0 then
-      --disp:setFontPosTop()
       disp:firstPage()
       repeat
         disp:drawStr(65,0, data["day"])
@@ -30,7 +29,6 @@ end
 
 
 function ShowTextualForecast()
-	--disp:setFontPosTop()
 	disp:firstPage()
 	repeat
 		DrawTextualForecats()

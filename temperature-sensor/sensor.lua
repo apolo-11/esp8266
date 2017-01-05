@@ -9,11 +9,6 @@ function sendData()
   if (#tmpSensors <= 0) then
     return
   end
-  
-  if (connectionClosed == false) then
-	print("Restarting because the connection was not closed")
-	node.restart()
-  end
 
   local sensorID = table.remove(tmpSensors)
   local temp=ds1820.read(sensors[sensorID])
@@ -22,36 +17,21 @@ function sendData()
     print("No data for: "..sensorID)
     return
   end
-  
-  tmr.wdclr()
 
   print("Sending temp: "..sensorID .. ": "..temp.." C")
-  print("Heap "..node.heap())
-  local conn=net.createConnection(net.TCP, 0)
-  connectionClosed = false
-  conn:on("receive", function(conn, payload)
-                          tmr.wdclr()
-						  print('Received')
-						  --print(payload)
-						  conn:close()
-						end)
-  conn:on("sent", function(conn) tmr.wdclr() print("Sent") end )
-  conn:on("disconnection", function(conn)
-                          tmr.wdclr()
-						  print('Disconnected')
-						  connectionClosed = true
-						  tmr.alarm(3, 100, 0, function() sendData() end )
-						end)
-  conn:on("connection", function(conn)
-						  tmr.wdclr()
-						  print("Connected")
-						  conn:send("GET /rest/measurement/"..sensorID.."?temperature="..temp.." HTTP/1.1\r\n"
-						  .."Host: "..HOST_NAME.."\r\n"
-						  .."Accept: */*\r\n"
-						  .."User-Agent: Mozilla/4.0 (compatible; Windows NT 5.1)\r\n"
-						  .."\r\n")
-						end)
-  conn:connect(80,remoteIP)
+
+  tmr.wdclr()
+  http.get("http://"..HOST_NAME.."/rest/measurement/"..sensorID.."?temperature="..temp, nil, function(code, data)
+    if (code < 0) then
+      print("Restarting because of http error: "..code)
+      node.restart()
+    else
+      print(code, data)
+    end
+
+    -- send data from next sensor
+    node.task.post(sendData)
+  end)
 end
 
 function sendDataForAll()
@@ -66,27 +46,15 @@ function sendDataForAll()
     table.insert(tmpSensors, sensorID)
   end
 
-  sendData()
+  -- send data for all sensors
+  node.task.post(sendData)
 end
 
-function getDns()
-  print("Getting IP for "..HOST_NAME)
-  tmr.wdclr()
-  local sk = net.createConnection(net.TCP, 0)
-  sk:dns(HOST_NAME,function(conn,ip)
-						print(HOST_NAME.." - "..ip)
-						remoteIP=ip
-                  end)
-  sk = nil
-end
 
-connectionClosed = true
-remoteIP = nil
-getDns()
 ds1820.setup(GPIO_DS1820)
 sensors=ds1820.addrs()
 tmpSensors={}
 
-tmr.alarm(2, 3600*1000, 1, function() getDns() end )
-tmr.alarm(1, 1000, 0, function() sendDataForAll() end )
 tmr.alarm(0, SEND_PERIOD, 1, function() sendDataForAll() end )
+sendDataForAll()
+
