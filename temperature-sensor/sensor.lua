@@ -1,9 +1,11 @@
-require("ds1820")
-
 -- read the configuration
 dofile("config.lc")
 
-function sendData()
+if (GPIO_DS1820 ~= nil) then
+  require("ds1820")
+end
+
+function sendDataDS1820()
   tmr.wdclr()
   
   if (#tmpSensors <= 0) then
@@ -18,7 +20,7 @@ function sendData()
     return
   end
 
-  print("Sending temp: "..sensorID .. ": "..temp.." C")
+  print("Sending id="..sensorID.." t="..temp)
 
   tmr.wdclr()
   http.get("http://"..HOST_NAME.."/rest/measurement/"..sensorID.."?temperature="..temp, nil, function(code, data)
@@ -29,13 +31,13 @@ function sendData()
       print(code, data)
     end
 
-    -- send data from next sensor
-    node.task.post(sendData)
+    -- send data from next DS1820 sensor
+    node.task.post(sendDataDS1820)
   end)
 end
 
-function sendDataForAll()
-  print("Sending data for all sensors.")
+function sendDataForAllDS1820()
+  print("Sending data for DS1820 sensors.")
   
   tmr.wdclr()
   
@@ -47,12 +49,44 @@ function sendDataForAll()
   end
 
   -- send data for all sensors
-  node.task.post(sendData)
+  node.task.post(sendDataDS1820)
 end
 
+function sendDataForDHT()
+  print("Sending data for DHT sensor.")
+  
+  status, temp, humi, temp_dec, humi_dec = dht.read(GPIO_DHT)
+  if status == dht.OK then
+    t = string.format("%d.%03d", math.floor(temp), temp_dec)
+    h = string.format("%d.%03d", math.floor(humi), humi_dec)
+    id = node.chipid()
+    print("Sending id="..id.." t="..t.." h="..h)
+    
+    tmr.wdclr()
+    http.get("http://"..HOST_NAME.."/rest/measurement/"..id.."?temperature="..t.."&humidity="..h, nil, function(code, data)
+      if (code < 0) then
+        print("Restarting because of http error: "..code)
+        node.restart()
+      else
+        print(code, data)
+      end
+    end)
+  end
+end
 
-ds1820.setup(GPIO_DS1820)
-sensors=ds1820.addrs()
+function sendDataForAll()
+  if (GPIO_DS1820 ~= nil) then
+    sendDataForAllDS1820()
+  end
+  if (GPIO_DHT ~= nil) then
+    sendDataForDHT()
+  end
+end
+
+if (GPIO_DS1820 ~= nil) then
+  ds1820.setup(GPIO_DS1820)
+  sensors=ds1820.addrs()
+end
 tmpSensors={}
 
 tmr.alarm(0, SEND_PERIOD, 1, function() sendDataForAll() end )
