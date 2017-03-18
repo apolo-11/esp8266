@@ -1,18 +1,14 @@
 require('ds1820')
 
--- gpio0 - 3 je po startu na 0 a asi dela problemy na ESP-01
--- gpio2 - 4 dela problemy na ESP-02
-gpio0 = 4
--- Je to v nano sekundach.
-sendPeriod=(5 * 60 + 2) * 1000 * 1000
-hostName="teplomer.apolo-11.cz"
+-- read the configuration
+dofile("config.lc")
 
 function sendData()
   tmr.wdclr()
 
   sensorID, sensorAddr = next(sensors);
   if (sensorID == nil) then
-    local sleepTime = sendPeriod - tmr.now()
+    local sleepTime = SEND_PERIOD * 1000 - tmr.now()
     print("Go to deep sleep for "..sleepTime)
     node.dsleep(sleepTime)
     return
@@ -31,50 +27,22 @@ function sendData()
     print("No data for: "..sensorID)
     return
   end
-  
-  tmr.wdclr()
 
   print("Sending temp: "..sensorID .. ": "..temp.." C")
-  print("Heap "..node.heap())
-  local conn=net.createConnection(net.TCP, 0)
-  connectionClosed = false
-  conn:on("receive", function(conn, payload)
-                          tmr.wdclr()
-						  print('Received')
-						  --print(payload)
-						  conn:close()
-						end)
-  conn:on("sent", function(conn) tmr.wdclr() print("Sent") end )
-  conn:on("disconnection", function(conn)
-                          tmr.wdclr()
-						  print('Disconnected')
-						  connectionClosed = true
-						  tmr.alarm(3, 100, 0, function() sendData() end )
-						end)
-  conn:on("connection", function(conn)
-						  tmr.wdclr()
-						  print("Connected")
-						  conn:send("GET /rest/measurement/"..sensorID.."?temperature="..temp.." HTTP/1.1\r\n"
-						  .."Host: "..hostName.."\r\n"
-						  .."Accept: */*\r\n"
-						  .."User-Agent: Mozilla/4.0 (compatible; Windows NT 5.1)\r\n"
-						  .."\r\n")
-						end)
-  conn:connect(80,remoteIP)
+  tmr.wdclr()
+  http.get("http://"..HOST_NAME.."/rest/measurement/"..sensorID.."?temperature="..temp, nil, function(code, data)
+    if (code < 0) then
+      print("Restarting because of http error: "..code)
+      node.restart()
+    else
+      print(code, data)
+    end
+
+    -- send data from next DS1820 sensor
+    node.task.post(sendData)
+  end)
 end
 
-connectionClosed = true
-remoteIP = nil
-
-print("Getting IP for "..hostName)
-tmr.wdclr()
-local sk = net.createConnection(net.TCP, 0)
-sk:dns(hostName,function(conn,ip)
-          print(hostName.." - "..ip)
-          remoteIP=ip
-          conn:close()
-          ds1820.setup(gpio0)
-          sensors=ds1820.addrs()
-          tmr.alarm(3, 100, 0, function() sendData() end )
-   end)
-sk = nil
+ds1820.setup(GPIO_DS1820)
+sensors=ds1820.addrs()
+node.task.post(sendData)
