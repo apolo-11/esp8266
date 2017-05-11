@@ -14,3 +14,4 @@ This repository contains couple of projects with the ESP 8266 chip.
 ## Links
 * NodeMCU documentation: http://nodemcu.readthedocs.io/en/master/en/
 * Tool to make customized firmware: https://nodemcu-build.com/
+* USB-to-Serial driver that works: http://www.totalcardiagnostics.com/support/Knowledgebase/Article/View/92/20/prolific-usb-to-serial-fix-official-solution-to-code-10-error
